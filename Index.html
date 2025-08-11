@@ -1,1 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Mini Clash Royale</title>
+  <style>
+    body {
+      margin: 0;
+      background: #89cff0;
+      font-family: Arial, sans-serif;
+      overflow: hidden;
+    }
+    #game {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+      background: linear-gradient(to bottom, #a3e0ff 60%, #5e8ac5 100%);
+    }
+    #arena {
+      position: absolute;
+      left: 50%;
+      top: 52%;
+      transform: translate(-50%, -50%);
+      width: 900px;
+      height: 500px;
+      background: #fffbe7;
+      border: 8px solid #d1a464;
+      border-radius: 30px;
+      box-shadow: 0 0 40px #3f2e1e44;
+      overflow: hidden;
+    }
+    #playerbar, #enemybar {
+      position: absolute;
+      width: 180px;
+      height: 32px;
+      background: #fafafa;
+      border-radius: 16px;
+      border: 3px solid #d1a464;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      font-size: 18px;
+      text-align: center;
+      line-height: 32px;
+      font-weight: bold;
+    }
+    #enemybar { top: auto; bottom: 12px; }
+    #elixirbar {
+      position: absolute;
+      left: 50%;
+      bottom: 0;
+      transform: translateX(-50%);
+      width: 300px;
+      height: 30px;
+      background: #4ee6a9;
+      border: 2px solid #3dbb8b;
+      border-radius: 15px 15px 0 0;
+      text-align: center;
+      font-size: 18px;
+      z-index: 10;
+      font-weight: bold;
+    }
+    #cardbar {
+      position: absolute;
+      left: 50%;
+      bottom: 35px;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 15px;
+      z-index: 11;
+    }
+    .card {
+      width: 70px;
+      height: 100px;
+      background: #ffefad;
+      border: 2px solid #b69136;
+      border-radius: 10px;
+      box-shadow: 0 0 10px #b6913666;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 16px;
+      transition: transform 0.2s;
+      position: relative;
+    }
+    .card:hover {
+      transform: scale(1.08);
+      background: #fff6d1;
+    }
+    .elixir-cost {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: #4ee6a9;
+      color: #fff;
+      border-radius: 50%;
+      width: 30px;
+      height: 30px;
+      text-align: center;
+      font-size: 15px;
+      font-weight: bold;
+      line-height: 30px;
+      border: 2px solid #3dbb8b;
+    }
+    #message {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -120%);
+      background: #fffbe7ee;
+      border: 3px solid #d1a464;
+      border-radius: 18px;
+      padding: 28px 60px;
+      font-size: 34px;
+      font-weight: bold;
+      z-index: 100;
+      display: none;
+      box-shadow: 0 0 20px #3f2e1e24;
+    }
+    canvas {
+      display: block;
+      position: absolute;
+      left: 0; top: 0;
+      z-index: 3;
+    }
+  </style>
+</head>
+<body>
+  <div id="game">
+    <div id="arena">
+      <div id="playerbar">Player Tower: <span id="playerhp">1000</span></div>
+      <div id="enemybar">Enemy Tower: <span id="enemyhp">1000</span></div>
+      <div id="elixirbar">Elixir: <span id="elixir">5</span>/10</div>
+      <div id="cardbar"></div>
+      <div id="message"></div>
+      <canvas id="board" width="900" height="500"></canvas>
+    </div>
+  </div>
+  <script>
+    // Game Constants
+    const TOWER_HP = 1000;
+    const ELIXIR_MAX = 10;
+    const ELIXIR_REGEN = 0.3;
+    const CARD_HAND = [
+      {name: "Knight", cost: 3, color: "#d1a464", hp: 180, dmg: 45, spd: 1.8, range: 20, type: "melee", emoji: "🗡️"},
+      {name: "Archer", cost: 3, color: "#8dc6ff", hp: 100, dmg: 32, spd: 2.2, range: 95, type: "ranged", emoji: "🏹"},
+      {name: "Giant", cost: 5, color: "#ffb07c", hp: 350, dmg: 70, spd: 1.1, range: 20, type: "melee", emoji: "👹"},
+      {name: "Bomber", cost: 2, color: "#e57d7d", hp: 80, dmg: 90, spd: 2.0, range: 80, type: "ranged", emoji: "💣"},
+    ];
+    const ENEMY_CARDS = [
+      {name: "Mini P.E.K.K.A", cost: 4, color: "#7a8aff", hp: 160, dmg: 60, spd: 1.7, range: 20, type: "melee", emoji: "🤖"},
+      {name: "Spear Goblin", cost: 2, color: "#a4ff8d", hp: 75, dmg: 28, spd: 2.3, range: 90, type: "ranged", emoji: "🪃"},
+      {name: "Hog Rider", cost: 5, color: "#ffa332", hp: 200, dmg: 65, spd: 1.8, range: 20, type: "melee", emoji: "🐗"},
+      {name: "Witch", cost: 4, color: "#a27cff", hp: 120, dmg: 38, spd: 1.9, range: 100, type: "ranged", emoji: "🧙‍♀️"},
+    ];
 
+    // DOM
+    const elixirSpan = document.getElementById('elixir');
+    const cardbar = document.getElementById('cardbar');
+    const playerhpSpan = document.getElementById('playerhp');
+    const enemyhpSpan = document.getElementById('enemyhp');
+    const messageDiv = document.getElementById('message');
+    const canvas = document.getElementById('board');
+    const ctx = canvas.getContext('2d');
+
+    // Game State
+    let playerHP = TOWER_HP;
+    let enemyHP = TOWER_HP;
+    let elixir = 5;
+    let cards = [...CARD_HAND];
+    let playerTroops = [];
+    let enemyTroops = [];
+    let lastElixirTime = Date.now();
+    let lastEnemyDeploy = Date.now();
+    let gameOver = false;
+
+    // Card UI
+    function drawCards() {
+      cardbar.innerHTML = '';
+      cards.forEach((card, idx) => {
+        const div = document.createElement('div');
+        div.className = 'card';
+        div.style.background = card.color;
+        div.innerHTML = `<span style="font-size:2em">${card.emoji}</span><br>${card.name}
+          <div class="elixir-cost">${card.cost}</div>`;
+        div.onclick = () => selectCard(idx);
+        if (elixir < card.cost) div.style.opacity = "0.5";
+        cardbar.appendChild(div);
+      });
+    }
+
+    // Deploy card
+    function selectCard(idx) {
+      if (gameOver) return;
+      const card = cards[idx];
+      if (elixir < card.cost) return;
+      elixir -= card.cost;
+      spawnTroop(card, "player", {x: 120 + Math.random()*660, y: 450});
+      drawCards();
+      updateElixir();
+    }
+
+    // Spawn troop object
+    function spawnTroop(card, team, pos) {
+      const troop = {
+        ...card,
+        team,
+        hp: card.hp,
+        x: pos.x,
+        y: pos.y,
+        target: null,
+        cooldown: 0,
+      };
+      if (team === "player") playerTroops.push(troop);
+      else enemyTroops.push(troop);
+    }
+
+    // Enemy deploy logic
+    function enemyDeploy() {
+      if (gameOver) return;
+      const now = Date.now();
+      if (now - lastEnemyDeploy < 1400 + Math.random()*500) return;
+      lastEnemyDeploy = now;
+      const card = ENEMY_CARDS[Math.floor(Math.random() * ENEMY_CARDS.length)];
+      spawnTroop(card, "enemy", {x: 120 + Math.random()*660, y: 60 + Math.random()*40});
+    }
+
+    // Elixir regeneration
+    function regenElixir() {
+      if (gameOver) return;
+      const now = Date.now();
+      if (elixir < ELIXIR_MAX && now - lastElixirTime > 1000/ELIXIR_REGEN) {
+        elixir = Math.min(ELIXIR_MAX, elixir + 1);
+        lastElixirTime = now;
+        updateElixir();
+        drawCards();
+      }
+    }
+
+    function updateElixir() {
+      elixirSpan.textContent = elixir;
+    }
+
+    // Towers
+    const playerTower = {x: 450, y: 470, hp: TOWER_HP, team: "player"};
+    const enemyTower = {x: 450, y: 30, hp: TOWER_HP, team: "enemy"};
+
+    // Troop logic
+    function updateTroops() {
+      function processTroops(troops, enemyTroops, tower) {
+        for (let troop of troops) {
+          troop.cooldown -= 1/60;
+          // Find target
+          if (!troop.target || troop.target.hp <= 0) {
+            // Find nearest enemy troop or tower
+            let candidates = enemyTroops.filter(e => e.hp > 0);
+            if (candidates.length === 0) candidates = [tower];
+            let minDist = Infinity;
+            let closest = null;
+            for (let e of candidates) {
+              let dx = troop.x - e.x, dy = troop.y - e.y;
+              let dist = Math.sqrt(dx*dx + dy*dy);
+              if (dist < minDist) { minDist = dist; closest = e; }
+            }
+            troop.target = closest;
+          }
+          // Move closer if needed
+          let dx = troop.target.x - troop.x, dy = troop.target.y - troop.y;
+          let dist = Math.sqrt(dx*dx + dy*dy);
+          if (dist > troop.range) {
+            let step = troop.spd;
+            troop.x += step * dx/dist;
+            troop.y += step * dy/dist;
+          } else if (troop.cooldown <= 0) {
+            // Attack!
+            troop.target.hp -= troop.dmg;
+            troop.cooldown = 1.1;
+            // Particle effect
+            ctx.save();
+            ctx.globalAlpha = 0.7;
+            ctx.beginPath();
+            ctx.arc(troop.x, troop.y, 13, 0, 2*Math.PI);
+            ctx.fillStyle = troop.team === "player" ? "#4ee6a9" : "#ffb07c";
+            ctx.fill();
+            ctx.restore();
+          }
+        }
+        // Remove dead
+        return troops.filter(t => t.hp > 0);
+      }
+      playerTroops = processTroops(playerTroops, enemyTroops, enemyTower);
+      enemyTroops = processTroops(enemyTroops, playerTroops, playerTower);
+    }
+
+    // Draw loop
+    function drawBoard() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      // Draw lanes
+      ctx.strokeStyle = "#d1a464";
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.moveTo(160, 0); ctx.lineTo(160, 500);
+      ctx.moveTo(740, 0); ctx.lineTo(740, 500);
+      ctx.stroke();
+      // Draw towers
+      drawTower(playerTower.x, playerTower.y, playerTower.hp, "player");
+      drawTower(enemyTower.x, enemyTower.y, enemyTower.hp, "enemy");
+      // Draw troops
+      for (let t of playerTroops) drawTroop(t);
+      for (let t of enemyTroops) drawTroop(t);
+    }
+
+    function drawTower(x, y, hp, team) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(x, y, 40, 0, 2*Math.PI);
+      ctx.fillStyle = team === "player" ? "#d1a464" : "#8dc6ff";
+      ctx.fill();
+      ctx.strokeStyle = "#a67c52";
+      ctx.lineWidth = 5;
+      ctx.stroke();
+      ctx.font = "22px Arial";
+      ctx.fillStyle = "#fff";
+      ctx.textAlign = "center";
+      ctx.fillText("🏰", x, y+10);
+      ctx.font = "16px Arial";
+      ctx.fillStyle = "#555";
+      ctx.fillText(hp > 0 ? hp : "0", x, y+34);
+      ctx.restore();
+    }
+
+    function drawTroop(t) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, 26, 0, 2*Math.PI);
+      ctx.fillStyle = t.color;
+      ctx.globalAlpha = 0.88;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = "#333";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.font = "22px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText(t.emoji, t.x, t.y+8);
+      ctx.font = "13px Arial";
+      ctx.fillStyle = "#111";
+      ctx.fillText(t.hp, t.x, t.y+27);
+      ctx.restore();
+    }
+
+    // Game loop
+    function gameLoop() {
+      if (gameOver) return;
+      // Elixir
+      regenElixir();
+      // Enemy deploy
+      enemyDeploy();
+      // Troop update
+      updateTroops();
+      // Tower HP
+      playerHP = Math.max(0, playerTower.hp);
+      enemyHP = Math.max(0, enemyTower.hp);
+      playerhpSpan.textContent = playerHP;
+      enemyhpSpan.textContent = enemyHP;
+      // Win/lose
+      if (playerHP <= 0 || enemyHP <= 0) {
+        endGame(playerHP > 0 ? "You Win!" : "You Lose!");
+        return;
+      }
+      drawBoard();
+      requestAnimationFrame(gameLoop);
+    }
+
+    // End game
+    function endGame(msg) {
+      gameOver = true;
+      messageDiv.style.display = "block";
+      messageDiv.textContent = msg;
+      setTimeout(() => {
+        messageDiv.style.display = "none";
+        resetGame();
+      }, 4000);
+    }
+
+    function resetGame() {
+      playerHP = TOWER_HP;
+      enemyHP = TOWER_HP;
+      playerTower.hp = TOWER_HP;
+      enemyTower.hp = TOWER_HP;
+      elixir = 5;
+      playerTroops = [];
+      enemyTroops = [];
+      gameOver = false;
+      updateElixir();
+      drawCards();
+      drawBoard();
+      requestAnimationFrame(gameLoop);
+    }
+
+    // Start
+    drawCards();
+    drawBoard();
+    requestAnimationFrame(gameLoop);
+  </script>
+</body>
+</html>
