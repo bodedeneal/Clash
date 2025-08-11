@@ -121,6 +121,26 @@
       display: none;
       box-shadow: 0 0 20px #3f2e1e24;
     }
+    #playbtn {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      background: #ffd700;
+      color: #333;
+      font-size: 32px;
+      font-weight: bold;
+      border: 4px solid #d1a464;
+      border-radius: 16px;
+      padding: 24px 80px;
+      cursor: pointer;
+      z-index: 200;
+      box-shadow: 0 0 20px #d1a46466;
+      transition: background 0.2s;
+    }
+    #playbtn:hover {
+      background: #ffe567;
+    }
     canvas {
       display: block;
       position: absolute;
@@ -137,6 +157,7 @@
       <div id="elixirbar">Elixir: <span id="elixir">5</span>/10</div>
       <div id="cardbar"></div>
       <div id="message"></div>
+      <button id="playbtn">Play</button>
       <canvas id="board" width="900" height="500"></canvas>
     </div>
   </div>
@@ -166,6 +187,7 @@
     const messageDiv = document.getElementById('message');
     const canvas = document.getElementById('board');
     const ctx = canvas.getContext('2d');
+    const playBtn = document.getElementById('playbtn');
 
     // Game State
     let playerHP = TOWER_HP;
@@ -177,6 +199,7 @@
     let lastElixirTime = Date.now();
     let lastEnemyDeploy = Date.now();
     let gameOver = false;
+    let gameRunning = false; // <--- Added
 
     // Card UI
     function drawCards() {
@@ -188,14 +211,14 @@
         div.innerHTML = `<span style="font-size:2em">${card.emoji}</span><br>${card.name}
           <div class="elixir-cost">${card.cost}</div>`;
         div.onclick = () => selectCard(idx);
-        if (elixir < card.cost) div.style.opacity = "0.5";
+        if (elixir < card.cost || !gameRunning) div.style.opacity = "0.5";
         cardbar.appendChild(div);
       });
     }
 
     // Deploy card
     function selectCard(idx) {
-      if (gameOver) return;
+      if (gameOver || !gameRunning) return;
       const card = cards[idx];
       if (elixir < card.cost) return;
       elixir -= card.cost;
@@ -221,7 +244,7 @@
 
     // Enemy deploy logic
     function enemyDeploy() {
-      if (gameOver) return;
+      if (gameOver || !gameRunning) return;
       const now = Date.now();
       if (now - lastEnemyDeploy < 1400 + Math.random()*500) return;
       lastEnemyDeploy = now;
@@ -231,7 +254,7 @@
 
     // Elixir regeneration
     function regenElixir() {
-      if (gameOver) return;
+      if (gameOver || !gameRunning) return;
       const now = Date.now();
       if (elixir < ELIXIR_MAX && now - lastElixirTime > 1000/ELIXIR_REGEN) {
         elixir = Math.min(ELIXIR_MAX, elixir + 1);
@@ -355,7 +378,7 @@
 
     // Game loop
     function gameLoop() {
-      if (gameOver) return;
+      if (gameOver || !gameRunning) return;
       // Elixir
       regenElixir();
       // Enemy deploy
@@ -396,16 +419,29 @@
       playerTroops = [];
       enemyTroops = [];
       gameOver = false;
+      gameRunning = false;
+      updateElixir();
+      drawCards();
+      drawBoard();
+      playBtn.style.display = 'block';
+    }
+
+    // Play button logic
+    playBtn.onclick = function() {
+      playBtn.style.display = 'none';
+      gameRunning = true;
+      lastElixirTime = Date.now();
+      lastEnemyDeploy = Date.now();
       updateElixir();
       drawCards();
       drawBoard();
       requestAnimationFrame(gameLoop);
-    }
+    };
 
-    // Start
+    // Initial draw
     drawCards();
     drawBoard();
-    requestAnimationFrame(gameLoop);
+    playBtn.style.display = 'block'; // Show Play button at start
   </script>
 </body>
 </html>
